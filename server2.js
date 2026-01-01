@@ -1,4 +1,4 @@
-// Replace your old server2.js with this
+// ================= SERVER2.JS =================
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -10,14 +10,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// 🔒 Check if API key exists
 if (!OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY missing");
+  console.error("❌ OPENAI_API_KEY missing! Set it in Render Environment Variables.");
   process.exit(1);
 }
 
+// ================= MIDDLEWARE =================
 app.use(express.json());
 
-// ✅ CORS fixed for Netlify
+// ✅ CORS for Netlify frontend
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "https://ts-eagleai.netlify.app");
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
@@ -26,12 +28,19 @@ app.use((req, res, next) => {
   next();
 });
 
+// ================= ROOT =================
 app.get("/", (req, res) => res.send("✅ EagleAI server running"));
 
+// ================= CHAT API =================
 app.post("/api/chat", async (req, res) => {
   try {
     const { message } = req.body;
-    if (!message) return res.status(400).json({ reply: "Message missing" });
+
+    if (!message || message.trim() === "") {
+      return res.status(400).json({ reply: "Message missing" });
+    }
+
+    console.log("📨 Sending message to OpenAI:", message);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -42,8 +51,7 @@ app.post("/api/chat", async (req, res) => {
       body: JSON.stringify({
         model: "gpt-3.5-turbo",
         messages: [
-          { role: "system", content: "You are EagleAI, a helpful assistant. Do NOT repeat the user's message. Reply naturally and conversationally." }
-,
+          { role: "system", content: "You are EagleAI, a helpful assistant. Do NOT repeat the user's message. Reply naturally and conversationally." },
           { role: "user", content: message }
         ],
         temperature: 0.5,
@@ -52,13 +60,22 @@ app.post("/api/chat", async (req, res) => {
     });
 
     const data = await response.json();
-    if (!data?.choices?.length) return res.status(500).json({ reply: "AI error" });
 
-    res.json({ reply: data.choices[0].message.content });
+    if (!data?.choices?.length) {
+      console.error("❌ OpenAI API returned empty choices:", data);
+      return res.status(500).json({ reply: "AI failed to respond" });
+    }
+
+    const reply = data.choices[0].message?.content || "AI returned empty message";
+    console.log("🤖 EagleAI reply:", reply);
+
+    res.json({ reply });
+
   } catch (err) {
     console.error("❌ CHAT ERROR:", err);
     res.status(500).json({ reply: "Server error" });
   }
 });
 
+// ================= START SERVER =================
 app.listen(PORT, () => console.log(`🚀 EagleAI running on port ${PORT}`));
